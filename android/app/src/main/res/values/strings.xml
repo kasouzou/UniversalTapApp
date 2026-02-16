@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ユニバーサルタップサポート</string>
+    <string name="accessibility_service_description">登録された特定の単語を画面内から探し出し、ユーザーの代わりにタップ操作を行います。これにより、身体的な理由などで細かな操作が困難な方のスマホ利用を支援します。</string>
+</resources>
