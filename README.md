@@ -1,16 +1,44 @@
-# universal_tap_support
+# ユニバーサルタップサポート (Universal Tap Support)
 
-A new Flutter project.
+身体的な操作（手の震えや筋力低下など）が困難なユーザーを支援するための、自動タップ補助アプリケーションです。
 
-## Getting Started
+## 🌟 アプリの目的
+このアプリは、画面上の特定のボタン（「次へ」「完了」「閉じる」など）を正確にタップすることが難しいユーザーに代わって、あらかじめ設定したキーワードを画面から探し出し、自動的にタップを補助します。
 
-This project is a starting point for a Flutter application.
+## 🛠 操作手順
 
-A few resources to get you started if this is your first Flutter project:
+### 1. 支援対象の単語を登録する
+1. アプリを起動し、メイン画面下部の **「支援の対象の編集」** ボタンをタップします。
+2. テキスト入力欄に、自動タップしたいボタンの文字（例：「次へ」「完了」「Confirm」など）を入力します。
+3. **「＋」** ボタンを押してリストに追加します。
+   - ※ 大文字・小文字は区別されません。
+   - ※ 不要になった単語はゴミ箱アイコンで削除できます。
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 2. タップ支援サービスを開始する
+1. メイン画面の **「タップ支援サービスを開始」** ボタンをタップします。
+2. **初回起動時のみ**：
+   - 「ユーザー補助権限の利用について」という同意ダイアログが表示されます。内容を確認し、**「同意して設定へ」** を選択してください。
+   - Android の「ユーザー補助」設定画面が自動で開きます。
+   - インストール済みのアプリ（またはダウンロードしたサービス）の中から **「ユニバーサルタップサポート」** を探し、スイッチを **ON** にしてください。
+3. サービスが正常に開始されると、メイン画面のアイコンが緑色になり、ステータスが **「稼働中」** に変わります。
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### 3. 自動タップの動作を確認する
+1. 他のアプリ（YouTubeやテスト用の `tap_me_test_app` など）を開きます。
+2. 登録した単語を含むボタンが表示されると、アプリが自動的にその場所をタップします。
+3. タップに成功すると、デバイスが軽く振動（バイブレーション）して通知します。
+
+### 4. サービスを停止する
+1. アプリに戻り、**「タップ支援サービスを停止」** ボタンをタップします。
+2. ステータスが **「停止中」** に変わり、Android のシステム設定内の権限スイッチも自動的に **OFF** に切り替わります。
+   - ※ これにより、使用していない間のプライバシーとセキュリティを完全に保護します。
+
+---
+
+## ⚠️ 審査・開発者向け情報
+本アプリは Google Play の「ユーザー補助サービス（AccessibilityService）ポリシー」に厳格に準拠しています。
+
+- **事前の明確な開示**: サービス開始前にデータの取り扱いに関する同意を必ず取得します。
+- **最小権限**: 画面上のテキスト走査とクリック以外の不要な権限（通知、位置情報、ネットワーク送信など）は一切取得していません。
+- **透明性**: `disableSelf()` を活用し、アプリ内からシステム権限を物理的に解除できる仕組みを導入しています。
+
+詳細は `GOOGLE_PLAY_AUDIT.md` を参照してください。

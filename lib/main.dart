@@ -1,8 +1,8 @@
 import 'package:auto_tap_screen/label_settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -42,6 +42,19 @@ class _MyHomePageState extends State<MyHomePage> {
   // 【独自変数】今、監視エンジンが動いているかどうかを管理
   bool _isMonitoring = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadMonitoringStatus();
+  }
+
+  Future<void> _loadMonitoringStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isMonitoring = prefs.getBool('is_monitoring_enabled') ?? false;
+    });
+  }
+
   Future<void> _openAccessibilitySettings() async {
     try {
       await platform.invokeMethod('openAccessibilitySettings');
@@ -50,66 +63,101 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<bool> _isServiceEnabled() async {
+    try {
+      return await platform.invokeMethod('isAccessibilityServiceEnabled') ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // 監視の「開始」と「停止」を切り替えるメインロジック
   Future<void> _toggleMonitoring() async {
     if (_isMonitoring) {
-      // 停止はそのまま
+      // 停止（内部フラグをOFFにする。サービスがそれを検知してdisableSelf()を呼び出す）
       await _invokeNativeMethod('stopMonitoring');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_monitoring_enabled', false);
       setState(() => _isMonitoring = false);
-      _showSnackBar('タップ支援サービスを停止しました。');
+      _showSnackBar('サービスを完全に停止し、権限を解除しました。');
     } else {
-      // 【解説】いきなり権限を求めず、まずは「説明」を表示する
-      bool proceed = await _showPermissionDialog();
-      if (!proceed) return;
-
-      var status = await Permission.notification.status;
-
-      if (status.isPermanentlyDenied) {
-        // ツッコミ：もうOSはダイアログを出してくれない「絶縁状態」
-        _showSnackBar('設定から通知を許可してください。');
-        await openAppSettings(); // 直接設定画面へ飛ばす！
-        return;
-      }
+      // 開始：まずシステム設定で有効かチェック
+      bool isServiceEnabledInSystem = await _isServiceEnabled();
       
-      if (await Permission.notification.request().isGranted) {
-        // 通知が許可されたら、胸を張ってサービス開始！
+      if (!isServiceEnabledInSystem) {
+        // システム設定がOFFなら、同意ダイアログを表示して設定画面へ
+        bool proceed = await _showPermissionDialog();
+        if (!proceed) return;
+
+        // 内部フラグをONにし、設定画面へ飛ばす
         await _invokeNativeMethod('startMonitoring');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_monitoring_enabled', true);
         setState(() => _isMonitoring = true);
+        
+        _showSnackBar('設定画面で「ユニバーサルタップサポート」を有効にしてください。');
+        await Future.delayed(const Duration(milliseconds: 500));
+        await _openAccessibilitySettings();
       } else {
-        // 拒否されたら、なぜダメなのかを優しく説明
-        _showSnackBar('動作状況を表示するために通知の許可が必要です。');
+        // すでにシステム設定がONなら、即座に内部フラグをONにするだけでOK
+        await _invokeNativeMethod('startMonitoring');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_monitoring_enabled', true);
+        setState(() => _isMonitoring = true);
+        _showSnackBar('タップ支援サービスを稼働しました。');
       }
     }
   }
 
   // Googleが求める「事前の明確な開示」のためのダイアログ
   Future<bool> _showPermissionDialog() async {
-    // showDialogの結果（Future<bool?>）を待ってから、最後に ?? false で判定する
     final result = await showDialog<bool>(
       context: context,
-      // builderは「Widgetを返す」だけの役割に専念させる！
       builder: (context) => AlertDialog(
-        title: const Text('権限の使用について'),
-        content: const Text(
-          '本アプリは、タップ支援サービスの稼働状況を通知欄に表示するために「通知」権限を使用します。'
-          '\n\nまた、ユーザーが設定した単語を画面上から探し出し、自動でタップ操作を行うために「ユーザー補助（アクセシビリティ）サービス」を利用します。'
-          'これらの権限により取得されたデータが、外部に送信されることはありません。'
+        title: const Text('ユーザー補助権限の利用について'),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '本アプリは、身体的な操作が困難な方を支援するため「ユーザー補助サービス」を利用します。',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 16),
+              Text('■ アクセスする情報'),
+              Text('・画面上のテキスト（設定した文字を探すため）'),
+              SizedBox(height: 8),
+              Text('■ 使用目的'),
+              Text('・ユーザーが設定した文字を検出し、自動でタップを補助するため'),
+              SizedBox(height: 8),
+              Text('■ データの安全性'),
+              Text('・取得したデータは外部へ送信されません'),
+              Text('・他アプリのデータを収集・共有しません'),
+              SizedBox(height: 16),
+              Text(
+                '次の設定画面で「ユニバーサルタップサポート」を有効にしてください。',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false), // ここでfalseを返す
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true), // ここでtrueを返す
-            child: const Text('同意して進む'),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('同意して設定へ'),
           ),
         ],
       ),
     );
-
-    // ダイアログの外をタップして閉じられた場合は result が null になるので、
-    // その時は false として扱うようにマクロな視点でガードをかける
     return result ?? false;
   }
 
@@ -157,18 +205,8 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               const SizedBox(height: 30),
               
-              // 横画面時にボタンが横に並ぶと使いやすいが、今回はシンプルに縦並びを維持しつつ間隔を調整
-              ElevatedButton.icon(
-                onPressed: _openAccessibilitySettings,
-                icon: const Icon(Icons.settings_accessibility),
-                label: const Text('設定でユーザー補助を許可'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-              ),
+              // 独立した「設定で許可」ボタンを削除。開始ボタンに集約。
               
-              const SizedBox(height: 15),
-
               ElevatedButton.icon(
                 onPressed: _toggleMonitoring,
                 icon: Icon(_isMonitoring ? Icons.stop : Icons.play_arrow),
@@ -184,7 +222,7 @@ class _MyHomePageState extends State<MyHomePage> {
               const SizedBox(height: 30),
               // 動的に中身が変わるガイドセクション
               _buildGuideSection(),
-              // 既存のコードの中にこれを差し込むイメージ！
+              const SizedBox(height: 15),
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.push(
@@ -242,13 +280,13 @@ class _MyHomePageState extends State<MyHomePage> {
           if (_isMonitoring) ...[
             _buildStatusRow(Icons.check, "バックグラウンド監視：アクティブ"),
             _buildStatusRow(Icons.check, "ユーザー補助権限：有効"),
-            _buildStatusRow(Icons.sync, "タップ支援サービスの対象を待機中..."),
+            _buildStatusRow(Icons.sync, "ターゲットの出現を待機中..."),
           ] else ...[
-            _buildStepRow('1', 'ユーザー補助権限の有効化', '上の「設定でユーザー補助を許可」ボタンを押して設定から本アプリのユーザー補助をONにしてください。'),
+            _buildStepRow('1', '支援対象単語の設定', '「支援の対象の編集」から、自動タップしたい単語を登録してください。'),
             _buildDivider(),
-            _buildStepRow('2', '支援対象単語の設定', '「支援の対象の編集」から、タップしたい単語を登録してください。'),
+            _buildStepRow('2', 'タップ支援サービスの開始', '「タップ支援サービスを開始」ボタンを押し、権限に同意してください。'),
             _buildDivider(),
-            _buildStepRow('3', 'タップ支援サービスの開始', '開始ボタンを押し、通知欄にアイコンが出れば有効です。'),
+            _buildStepRow('3', 'ユーザー補助の有効化', '自動で設定画面が開くので「ユニバーサルタップサポート」をONにしてください。'),
           ],
         ],
       ),

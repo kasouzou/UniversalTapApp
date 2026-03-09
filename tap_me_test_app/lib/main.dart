@@ -31,8 +31,8 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
-  bool _showSkipButton = false;
-  Timer? _adTimer;
+  bool _showProceedButton = false;
+  Timer? _dynamicTimer;
 
   void _onTap(String label) {
     setState(() {
@@ -48,40 +48,34 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _startAd() {
+  void _startDynamicContent() {
     setState(() {
-      _showSkipButton = false;
+      _showProceedButton = false;
     });
-    _adTimer?.cancel();
-    _adTimer = Timer(const Duration(seconds: 5), () {
+    _dynamicTimer?.cancel();
+    _dynamicTimer = Timer(const Duration(seconds: 5), () {
       setState(() {
-        _showSkipButton = true;
+        _showProceedButton = true;
       });
     });
     
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ad started. Skip button will appear in 5s...')),
+      const SnackBar(content: Text('Processing... Dynamic button will appear in 5s...')),
     );
   }
 
-  // ボタンをSemanticsでラップしてアクセシビリティを強化するヘルパー
+  // ボタンをアクセシビリティサービスが検出しやすいように、余計なラップを避けてシンプルに実装
   Widget _buildAccessibleButton(String label, VoidCallback? onPressed, {Color? color, Color? textColor}) {
-    return Semantics(
-      button: true,
-      label: label,
-      enabled: onPressed != null,
-      onTap: onPressed,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: color != null ? ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: textColor) : null,
-        child: Text(label),
-      ),
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: color != null ? ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: textColor) : null,
+      child: Text(label),
     );
   }
 
   @override
   void dispose() {
-    _adTimer?.cancel();
+    _dynamicTimer?.cancel();
     super.dispose();
   }
 
@@ -122,29 +116,29 @@ class _MyHomePageState extends State<MyHomePage> {
               
               const Divider(height: 60),
               
-              // 広告シミュレーション
-              const Text('Ad Simulation Scenario:'),
+              // 動的コンテンツシミュレーション
+              const Text('Dynamic Content Scenario:'),
               const SizedBox(height: 10),
               ElevatedButton.icon(
-                onPressed: _startAd,
+                onPressed: _startDynamicContent,
                 icon: const Icon(Icons.play_circle_fill),
-                label: const Text('Start Ad (Wait 5s)'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade100),
+                label: const Text('Start Simulation (Wait 5s)'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade100),
               ),
               const SizedBox(height: 20),
               
-              // 遅延して現れる「Skip Ad」ボタン（Semantics対応済み）
+              // 遅延して現れる「Proceed」ボタン（Semantics対応済み）
               AnimatedOpacity(
-                opacity: _showSkipButton ? 1.0 : 0.0,
+                opacity: _showProceedButton ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 500),
-                child: _showSkipButton
+                child: _showProceedButton
                     ? _buildAccessibleButton(
-                        'Skip Ad',
-                        () => _onTap('Skip Ad'),
-                        color: Colors.red.shade400,
+                        'Proceed',
+                        () => _onTap('Proceed'),
+                        color: Colors.blue.shade400,
                         textColor: Colors.white,
                       )
-                    : const SizedBox(height: 50, child: Center(child: Text('Waiting for Skip Ad...'))),
+                    : const SizedBox(height: 50, child: Center(child: Text('Waiting for Dynamic Button...'))),
               ),
             ],
           ),

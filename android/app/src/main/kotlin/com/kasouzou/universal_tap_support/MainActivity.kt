@@ -1,10 +1,7 @@
 package com.kasouzou.universal_tap_support
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -34,21 +31,17 @@ class MainActivity: FlutterActivity() {
                     }
                 }
 
-                // 監視スタート（赤いボタンを表示）
+                // 監視スタート
                 "startMonitoring" -> {
-                    val intent = Intent(this, SupportForegroundService::class.java)
-                    // Android 8.0(Oreo)以上はフォアグラウンド制限があるため分岐
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("flutter.is_monitoring_enabled", true).apply()
                     result.success(null)
                 }
 
-                // 監視ストップ（赤いボタンを消す）
+                // 監視ストップ
                 "stopMonitoring" -> {
-                    stopService(Intent(this, SupportForegroundService::class.java))
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("flutter.is_monitoring_enabled", false).apply()
                     result.success(null)
                 }
 
@@ -65,25 +58,17 @@ class MainActivity: FlutterActivity() {
                     result.success(null)
                 }
 
+                "isAccessibilityServiceEnabled" -> {
+                    val expectedComponentName = "${packageName}/${packageName}.UniversalSupportService"
+                    val enabledServices = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                    val isEnabled = enabledServices?.contains(expectedComponentName) == true
+                    result.success(isEnabled)
+                }
+
                 else -> {
                     result.notImplemented()
                 }
             }
-        }
-    }
-
-    // 💡 解説：通知を出すための「道路」を作る独自の関数
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "タップ支援サービス状況"
-            val descriptionText = "サービスの稼働状態を通知します"
-            val importance = NotificationManager.IMPORTANCE_LOW // 音を鳴らさない控えめな設定
-            val channel = NotificationChannel("SUPPORT_CHANNEL", name, importance).apply {
-                description = descriptionText
-            }
-            val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
         }
     }
 }
