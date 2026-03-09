@@ -41,7 +41,9 @@ class MainActivity: FlutterActivity() {
                 // 監視ストップ
                 "stopMonitoring" -> {
                     val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-                    prefs.edit().putBoolean("flutter.is_monitoring_enabled", false).apply()
+                    prefs.edit().putBoolean("flutter.is_monitoring_enabled", false).commit()
+                    // サービスを直接停止させる
+                    UniversalSupportService.stopService()
                     result.success(null)
                 }
 
@@ -59,10 +61,18 @@ class MainActivity: FlutterActivity() {
                 }
 
                 "isAccessibilityServiceEnabled" -> {
-                    val expectedComponentName = "${packageName}/${packageName}.UniversalSupportService"
+                    val expectedComponentName = android.content.ComponentName(this, UniversalSupportService::class.java).flattenToString()
                     val enabledServices = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
                     val isEnabled = enabledServices?.contains(expectedComponentName) == true
                     result.success(isEnabled)
+                }
+
+                "stopServiceManually" -> {
+                    // This is only for completeness, disableSelf() in Service is the preferred way.
+                    // But we can ensure the pref is OFF.
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("flutter.is_monitoring_enabled", false).apply()
+                    result.success(true)
                 }
 
                 else -> {

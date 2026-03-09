@@ -36,22 +36,43 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   static const platform = MethodChannel('com.kasouzou.universal_tap_support/tap');
   
-  // 【独自変数】今、監視エンジンが動いているかどうかを管理
+  // 実際のシステム設定と連動する状態変数
   bool _isMonitoring = false;
 
   @override
   void initState() {
     super.initState();
-    _loadMonitoringStatus();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshStatus();
   }
 
-  Future<void> _loadMonitoringStatus() async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // 設定画面から戻ってきたときなどに最新の状態に更新する
+      _refreshStatus();
+    }
+  }
+
+  Future<void> _refreshStatus() async {
+    bool isEnabled = await _isServiceEnabled();
+    // 共有設定とも整合性を取る（重要：UIの表示用）
     final prefs = await SharedPreferences.getInstance();
+    bool isMonitoringPref = prefs.getBool('is_monitoring_enabled') ?? false;
+
     setState(() {
-      _isMonitoring = prefs.getBool('is_monitoring_enabled') ?? false;
+      // システム設定が有効かつ、内部でも有効になっている場合のみ「稼働中」とする
+      // ユーザーが手動でOFFにした場合に即座に反映されるように
+      _isMonitoring = isEnabled && isMonitoringPref;
     });
   }
 
@@ -67,6 +88,7 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       return await platform.invokeMethod('isAccessibilityServiceEnabled') ?? false;
     } catch (e) {
+      debugPrint("Serviceチェックエラー: $e");
       return false;
     }
   }
@@ -74,14 +96,21 @@ class _MyHomePageState extends State<MyHomePage> {
   // 監視の「開始」と「停止」を切り替えるメインロジック
   Future<void> _toggleMonitoring() async {
     if (_isMonitoring) {
-      // 停止（内部フラグをOFFにする。サービスがそれを検知してdisableSelf()を呼び出す）
+      // 【停止】まずUIを停止状態にして反応を良くする
+      setState(() => _isMonitoring = false);
+
+      // 内部フラグをOFFにする。サービス側がこれを検知して disableSelf() を実行する。
       await _invokeNativeMethod('stopMonitoring');
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_monitoring_enabled', false);
-      setState(() => _isMonitoring = false);
-      _showSnackBar('サービスを完全に停止し、権限を解除しました。');
+      
+      // 念のため少し待ってから実際のシステム状態と同期する
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _refreshStatus();
+      
+      _showSnackBar('タップ支援サービスを停止し、権限を解除しました。');
     } else {
-      // 開始：まずシステム設定で有効かチェック
+      // 【開始】まずシステム設定で有効かチェック
       bool isServiceEnabledInSystem = await _isServiceEnabled();
       
       if (!isServiceEnabledInSystem) {
@@ -89,21 +118,20 @@ class _MyHomePageState extends State<MyHomePage> {
         bool proceed = await _showPermissionDialog();
         if (!proceed) return;
 
-        // 内部フラグをONにし、設定画面へ飛ばす
+        // 内部フラグを先にONにしておき、ユーザーが設定をONにした瞬間に動き出すようにする
         await _invokeNativeMethod('startMonitoring');
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('is_monitoring_enabled', true);
-        setState(() => _isMonitoring = true);
         
         _showSnackBar('設定画面で「ユニバーサルタップサポート」を有効にしてください。');
         await Future.delayed(const Duration(milliseconds: 500));
         await _openAccessibilitySettings();
       } else {
-        // すでにシステム設定がONなら、即座に内部フラグをONにするだけでOK
+        // すでにシステム設定がONなら、内部フラグをONにするだけで監視が再開される
         await _invokeNativeMethod('startMonitoring');
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('is_monitoring_enabled', true);
-        setState(() => _isMonitoring = true);
+        await _refreshStatus();
         _showSnackBar('タップ支援サービスを稼働しました。');
       }
     }

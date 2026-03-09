@@ -8,20 +8,42 @@ import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
 import android.content.Context
+import android.content.Intent
 
 class UniversalSupportService : AccessibilityService(), android.content.SharedPreferences.OnSharedPreferenceChangeListener {
+
+    companion object {
+        private var instance: UniversalSupportService? = null
+
+        fun stopService() {
+            Log.d("SupportService", "stopService called. instance is null? ${instance == null}")
+            instance?.let {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    Log.d("SupportService", "Executing disableSelf()")
+                    it.disableSelf()
+                }
+            }
+            instance = null
+        }
+    }
 
     private var lastTapTime: Long = 0
     private var prefs: android.content.SharedPreferences? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         // 共有設定の監視を開始
         prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         prefs?.registerOnSharedPreferenceChangeListener(this)
         
         // 接続時に既にフラグがOFFなら即座に自分を無効化する
         checkAndDisableIfNeeded()
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        instance = null
+        return super.onUnbind(intent)
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: android.content.SharedPreferences?, key: String?) {
@@ -54,12 +76,13 @@ class UniversalSupportService : AccessibilityService(), android.content.SharedPr
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             
-            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-            val isEnabled = prefs.getBoolean("flutter.is_monitoring_enabled", false)
+            // メンバ変数のprefsを使用
+            val currentPrefs = prefs ?: getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val isEnabled = currentPrefs.getBoolean("flutter.is_monitoring_enabled", false)
             if (!isEnabled) return
 
             // セットのコピーを作成し、安全に読み取れるようにする
-            val savedTerms = prefs.getStringSet("flutter.support_labels", null)?.toSet() ?: emptySet()
+            val savedTerms = currentPrefs.getStringSet("flutter.support_labels", null)?.toSet() ?: emptySet()
             if (savedTerms.isEmpty()) return
 
             // --- 探索戦略：効率と網羅性のバランス ---
