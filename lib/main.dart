@@ -315,6 +315,15 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
             _buildStepRow('2', 'タップ支援サービスの開始', '「タップ支援サービスを開始」ボタンを押し、権限に同意してください。'),
             _buildDivider(),
             _buildStepRow('3', 'ユーザー補助の有効化', '自動で設定画面が開くので「ユニバーサルタップサポート」をONにしてください。'),
+            _buildDivider(),
+            _buildStepRow(
+              '4',
+              '操作上の注意',
+              '登録した文字列を検索窓や他アプリで入力する際は一旦このアプリの機能を停止してください。\n'
+              'サービスを再稼働した場合に正常に働かなかった場合は以下の手順をお試しください。\n'
+              '【手順】\n'
+              '設定アプリ → ユーザー補助 → UniversalTapApp → ユーザー補助設定 を一度OFFにし、再度ONにしてください。',
+            ),
           ],
         ],
       ),

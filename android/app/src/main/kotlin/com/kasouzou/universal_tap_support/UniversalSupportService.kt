@@ -137,7 +137,7 @@ class UniversalSupportService : AccessibilityService(), android.content.SharedPr
         val contentDesc = node.contentDescription?.toString() ?: ""
         
         for (term in targetTerms) {
-            if (term.isNotBlank() && (nodeText.contains(term, ignoreCase = true) || contentDesc.contains(term, ignoreCase = true))) {
+            if (term.isNotBlank() && (nodeText.equals(term, ignoreCase = true) || contentDesc.equals(term, ignoreCase = true))) {
                 // 見つかった！
                 // node.isVisibleToUser は Flutter 等で稀に false を返すことがあるため、
                 // クリック可能であれば試行する。
